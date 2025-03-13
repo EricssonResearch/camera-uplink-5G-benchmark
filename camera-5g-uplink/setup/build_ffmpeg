@@ -1,0 +1,128 @@
+#!/usr/bin/env bash
+
+# 2024-11-13 Wednesday
+#
+# this script manages compilation of ffmpeg with supporting 
+# libraries, and installing them into a global location, e.g. /opt.
+#
+# This gives us repeatable builds of libraries as well as unstripped/debug 
+# versions.
+#
+export OT_VERSION=v1.0.007
+
+# 2025-01-02: I am seeing that HEREDOCs don't work correctly anymore 
+# unless using BuildKit. You may need to install docker-buildx
+export DOCKER_BUILDKIT=1
+
+# We will actually install all the files to a directory like this:
+# /opt/.t1ptop_versions/1.0.007-dbg
+#
+# And we will symlink to it...
+# /opt/t1ptop => /opt/.t1ptop_versions/1.0.007-dbg
+#
+# The RUNPATH of executables/libraries produced will be rewritten to their 
+# correct paths on the host. E.g. /opt/.t1ptop_versions/1.0.007-dbg/bin/ffmpeg 
+# will find the libavcodec.so nearby, so that versions of executables and the libraries
+# they require stay consistent.
+
+REAL_PREFIX=/opt/.t1ptop_versions/${OT_VERSION}
+
+PREFIX=${PREFIX:=/opt/t1ptop} ; # this will be a symlink to the correct/current version.
+
+# these probably don't need to be changed.
+INST_PRE=${INST_PRE:=/hostopt} ; # directory that the container THINKS it will install to.
+                                 # but is mapped differently on the host
+TOP=${TOP:=/tmp/ffmpeg} ;        # directory in the container where source will be built
+TAG=${TAG:=dbg}
+
+function die() {
+    echo "FATAL-ERROR: $1"
+    exit 1
+}
+
+function stamp() {
+    local user
+    if [[ -z "$SUDO_USER" ]]; then
+        user=$(whoami)
+    else
+        user="$SUDO_USER (via sudo $(whoami))"
+    fi
+    echo "########################
+Tag:        ${TAG}
+Version:    $OT_VERSION 
+Build-Time: $(date '+%F %T')
+Hostname:   $(hostname)
+User:       ${user}
+Debug:      ${DEBUG}
+########################"
+}
+
+# test if we would be able to write the symlink anyway
+[[ -w $(dirname $PREFIX) ]]            || die "Install dir: $(basename $PREFIX) isn't writable"
+[[ ! -e $PREFIX ]] || [[ -w $PREFIX ]] || die "Symlink wouldn't be writable"
+
+function build_and_install() {
+    local top=${TOP:=/tmp/ffmpeg}
+    local ot_version=${OT_VERSION:=Unknown-version}
+    local tag=${TAG:=rel}
+    local debug=${DEBUG:=0}
+    local inst_pre=${INST_PRE:=/hostopt}
+
+    local docker_image=${docker_image:=jal_ff-${tag}}
+
+cat << EOF
+## building image: ${docker_image}
+$(stamp)
+
+EOF
+
+    docker build -t ${docker_image} -f Dockerfile \
+        --build-arg TOP="$top" \
+        --build-arg DEBUG="$debug" \
+        --build-arg OT_VERSION="$ot_version" \
+        --build-arg INST_PRE="$inst_pre" \
+        . \
+        || die "Docker build for image tag '$tag' failed"
+
+    RT_PREFIX="$REAL_PREFIX/${tag}"
+    docker run --rm -it \
+            -e INST_PRE=${inst_pre} \
+            -v ${RT_PREFIX}:${inst_pre} ${docker_image} \
+            ${TOP}/install.bash RT_PREFIX=${RT_PREFIX} \
+        || die "Image install failed"
+
+    [[ -d ${RT_PREFIX} ]] || die "Directory ${RT_PREFIX} was not produced"
+    stamp > ${RT_PREFIX}/info.txt
+}
+
+TAG=rel DEBUG=0 build_and_install
+TAG=dbg DEBUG=1 build_and_install
+TAG=dev DEBUG=0 OT_VERSION=${OT_VERSION}-dev build_and_install
+
+# NOTE:
+# these libraries are needed on the host system because the 
+# version-less symlink (e.g. libvpx.so) is otherwise missing.
+# even if the actual libraries are there.
+#
+# apt-get install libvpx-dev libvorbis-dev libmp3lame-dev libx265-dev libfdk-aac-dev
+
+
+# libzimg2
+# libvpx-dev
+
+OPWD=$(pwd)
+cd $(dirname "$PREFIX") || die "Can't cd to $(dirname $PREFIX)"
+
+if [[ -L "${PREFIX}" ]]; then
+    echo "at $(pwd): PREFIX ${PREFIX} is a symlink"
+    rm ${PREFIX}
+elif [[ -e ${PREFIX} ]]; then
+    echo "at $(pwd): PREFIX ${PREFIX} not a symlink"
+    die "File at ${PREFIX} was not a symlink as expected"
+fi
+
+ln -s "${REAL_PREFIX}/${TAG}" $(basename ${PREFIX}) || die "Couldn't create symlink at $(pwd) : ${PREFIX}"
+
+cd $OPWD
+
+echo "created symlink?"
