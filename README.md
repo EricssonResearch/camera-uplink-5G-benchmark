@@ -33,7 +33,7 @@ existing companies transition off of wireline networks.
 We would like to be able to welcome others to add new codecs or testing conditions as open-source contributions, subject to internal approvals.
 
 # Licensing
-Will become either MIT or BSD licensed. No license is yet applied.
+BSD license, see included LICENSE file.
 
 # Stakeholders
 - Eric Petajan, AT&T
@@ -42,4 +42,5 @@ Will become either MIT or BSD licensed. No license is yet applied.
 - Sobaan Kazi, AT&T CU
 - Neha Aneja, Ericsson MANA
 - David Lindero, Ericsson ER DRI
-
+- Lars Ernstrom, Ericsson ER NAP
+- Szilveszter Nadas, Ericsson ER NAP
