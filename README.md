@@ -23,11 +23,11 @@ the script for their environments. New codecs will be added, e.g. VVC, over
 time when they become suitable for the relevant use cases.
 
 # Business Case
-This supports a joint whitepaper being planned with AT&T. The ambition on
-both sides is to promote confidence in 5G-connected cameras (or other
-video uplink use cases) and help form an ecosystem around it. AT&T would
-like to take some leadership there to attract new verticals or help
-existing companies transition off of wireline networks.
+Our intention is to provide a benchmark for independent software vendors
+and system integrators to evaluate the technical benefits of hardware and
+software choices for video related applications on cellular networks. We
+also intend to publish a whitepaper with our analysis of current benchmark
+data.
 
 # Adoption Strategy
 We would like to be able to welcome others to add new codecs or testing conditions as open-source contributions, subject to internal approvals.
