@@ -58,7 +58,7 @@ Debug:      ${DEBUG}
 }
 
 # test if we would be able to write the symlink anyway
-[[ -w $(dirname $PREFIX) ]]            || die "Install dir: $(basename $PREFIX) isn't writable"
+[[ -w $(dirname $PREFIX) ]]            || die "Install dir: $(dirname $PREFIX) isn't writable"
 [[ ! -e $PREFIX ]] || [[ -w $PREFIX ]] || die "Symlink wouldn't be writable"
 
 function build_and_install() {
