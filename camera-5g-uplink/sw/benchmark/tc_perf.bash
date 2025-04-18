@@ -1343,9 +1343,13 @@ function run_encoding_tests() {
 function main() {
     echo -n "" > $RESULTS
 
+    echo "CLIPS_DIR: $CLIPS_DIR"
+
     for fname in "$CLIPS_DIR"/*.{mp4,mov}; do
-        echo "File: $fname"
-        perf_test "${fname}" -t 10 -ss 0
+        if [[ -e "${fname}" ]]; then
+            debug_2 "Input video file: $fname"
+            perf_test "${fname}" -t 10 -ss 0
+        fi
     done
 }
 
