@@ -98,6 +98,10 @@ DISK_TEST=${DISK_TEST:=1}
 #            | {_crf<crf>}
 #            ; {_pre<preset>}  (we put a - before preset if it's a string not a number)
 #
+#
+
+# A VMAF running tool, taking args: <ref-clip> <dst-clip> <score-file>
+VMAF_TOOL=$(dirname $(realpath $0))/vmaf_tool
 
 # PRESET="veryfast faster fast medium slow slower veryslow"
 
@@ -205,6 +209,8 @@ SUPPORTS_CRF[libx265]=1
 # but this is the list of the ones that will be done if 
 # libx265 is included.
 CRF_LIST=${CRF_LIST:="8 12 16 20 24 28 32"}
+
+
 
 ######################################################################
 ######################################################################
@@ -381,8 +387,7 @@ function run_vmaf() {
     # TODO:
     # really we should get it from the current tree where this 
     # script is located or installed to.
-    for vmaf in /home/jlynam/bin/vmaf \
-                /home/jlynam/trees/cloudgaming/sw/vmaf/docker/vmaf \
+    for vmaf in $VMAF_TOOL \
                 none; do
         if [[ -x $vmaf ]]; then
             break
