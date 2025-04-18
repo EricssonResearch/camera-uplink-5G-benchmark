@@ -101,7 +101,7 @@ DISK_TEST=${DISK_TEST:=1}
 #
 
 # A VMAF running tool, taking args: <ref-clip> <dst-clip> <score-file>
-VMAF_TOOL=$(dirname $(realpath $0))/vmaf_tool
+VMAF_TOOL="$(dirname "$(realpath $0)")/vmaf_tool.bash"
 
 # PRESET="veryfast faster fast medium slow slower veryslow"
 
@@ -171,6 +171,13 @@ VMAF_TOOL=$(dirname $(realpath $0))/vmaf_tool
 # Note that any codecs that are not supported by ffmpeg or hardware 
 # are skipped with a warning.
 #
+
+SCRIPT_DIR=$(dirname "$(realpath $0)")
+ROOT_DIR=$(readlink -f "$SCRIPT_DIR/../..")
+CLIPS_DIR="../../clips"
+
+# echo "SCRIPT_DIR: $SCRIPT_DIR"
+# echo "ROOT_DIR:   $ROOT_DIR"
 
 # output result .csv filename
 RESULTS=${RESULTS:=results.csv}
@@ -387,14 +394,14 @@ function run_vmaf() {
     # TODO:
     # really we should get it from the current tree where this 
     # script is located or installed to.
-    for vmaf in $VMAF_TOOL \
+    for vmaf in "$VMAF_TOOL" \
                 none; do
         if [[ -x $vmaf ]]; then
             break
         fi
     done
     [[ vmaf == "none" ]] && die "Could not find VMAF tool to run"
-    $vmaf "$1" "$2" "$3"
+    "$vmaf" "$1" "$2" "$3"
 }
 
 # probably any version would be ok. 
@@ -1095,7 +1102,7 @@ function avail_codecs() {
         if ${FFMPEG} -codecs 2>/dev/null | grep -q $codec; then
             debug_2 "Codec $codec supported in ffmpeg ($FFMPEG)"
         else
-            warn "Codec $codec not supported inthis ffmpeg ($FFMPEG)"
+            warn "Codec $codec not supported in this ffmpeg ($FFMPEG)"
             supported=0
         fi
 
@@ -1329,59 +1336,17 @@ function run_encoding_tests() {
 
 }
 
+
 # main() 
 #
 # runs execution performance and VMAF scoring against specified sources
 function main() {
-
-    # clear out results file. 
-    # For any job that has already been run, it's pretty cheap to re-write the data 
-    # since we save the results.
     echo -n "" > $RESULTS
 
-    # CLIPS TO PROCESS
-    #
-    # this runs 'perf_test' (which executes all encoding and VMAF jobs) agaist the 
-    # specified clips (with optional sub-segments specified using -t and -ss, etc.)
-
-    # perf_test  clip2.mov
-    # perf_test  clip3.mov
-    # perf_test  clip4.mov
-
-  if false; then
-    # this grouping is used for testing how much performance increases 
-    # for longer clips. With some codecs there is a very noticeable effect.
-
-    perf_test  clip1.mov -t  5 -ss 0
-    perf_test  clip1.mov -t 10 -ss 0
-    perf_test  clip1.mov -t 15 -ss 0
-    perf_test  clip1.mov -t 20 -ss 0
-    perf_test  clip1.mov -t 25 -ss 0
-    perf_test  clip1.mov -t 30 -ss 0
-
-    perf_test  clip1.mov
-
-  fi
-
-  if true; then
-    perf_test  clip1.mov -t 10 -ss 0
-    perf_test  clip1.mov -t 10 -ss 10
-    perf_test  clip1.mov -t 10 -ss 17
-
-    perf_test  clip2.mov -t 10 -ss 0
-    perf_test  clip2.mov -t 10 -ss 10
-    perf_test  clip2.mov -t 10 -ss 20
-
-    perf_test  clip3.mov -t 10 -ss 0
-    perf_test  clip3.mov -t 10 -ss 10
-    perf_test  clip3.mov -t 10 -ss 20
-
-    perf_test  clip4.mov -t 10 -ss 0
-    perf_test  clip4.mov -t 10 -ss 10
-    perf_test  clip4.mov -t 10 -ss 20
-    perf_test  clip4.mov -t 10 -ss 30
-  fi
-
+    for fname in "$CLIPS_DIR"/*.{mp4,mov}; do
+        echo "File: $fname"
+        perf_test "${fname}" -t 10 -ss 0
+    done
 }
 
 main
