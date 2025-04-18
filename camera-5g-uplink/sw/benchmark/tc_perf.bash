@@ -174,7 +174,7 @@ VMAF_TOOL="$(dirname "$(realpath $0)")/vmaf_tool.bash"
 
 SCRIPT_DIR=$(dirname "$(realpath $0)")
 ROOT_DIR=$(readlink -f "$SCRIPT_DIR/../..")
-CLIPS_DIR="../../clips"
+CLIPS_DIR="clips"
 
 # echo "SCRIPT_DIR: $SCRIPT_DIR"
 # echo "ROOT_DIR:   $ROOT_DIR"
@@ -1343,7 +1343,9 @@ function run_encoding_tests() {
 function main() {
     echo -n "" > $RESULTS
 
-    echo "CLIPS_DIR: $CLIPS_DIR"
+    [[ -d "$CLIPS_DIR" ]] || die "Expected clips directory at $CLIPS_DIR"
+
+    debug_2 "CLIPS_DIR: $CLIPS_DIR"
 
     for fname in "$CLIPS_DIR"/*.{mp4,mov}; do
         if [[ -e "${fname}" ]]; then
