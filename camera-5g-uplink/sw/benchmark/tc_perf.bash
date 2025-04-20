@@ -1,20 +1,22 @@
 #!/usr/bin/env bash
 
-VERSION=1.0.012
-
-DEBUG=${DEBUG:=1}
-AGG_DATA=${AGG_DATA:=1}
-
-# whether to run disk transfer speed test using 'dd' to ensure our local SSD / caching 
-# can keep up with requirements. Note that this will log the speeds but won't 
-# prevent testing or throw an error.
-DISK_TEST=${DISK_TEST:=1}
-
 # 2024-09-10 <jonathan.lynam@ericsson.com>
 #
 # This script compares encoding performance between codecs. 
 # so far it supports libx265 and hevc_qsv
 # it runs through various presets (e.g. veryfast) as well as bitrates and resolutions.
+
+# Basic parameters.
+VERSION=1.0.012
+DEBUG=${DEBUG:=1}
+COLOR=${COLOR:=1} ; # whether to print debugs in color.
+AGG_DATA=${AGG_DATA:=1}
+
+# whether to run disk transfer speed test using 'dd' to ensure our local 
+# SSD / caching can keep up with requirements. Note that this will log the 
+# speeds but won't prevent testing or throw an error.
+DISK_TEST=${DISK_TEST:=1}
+
 
 # TODO:
 #
@@ -98,8 +100,31 @@ DISK_TEST=${DISK_TEST:=1}
 #            | {_crf<crf>}
 #            ; {_pre<preset>}  (we put a - before preset if it's a string not a number)
 #
+#
 
-# PRESET="veryfast faster fast medium slow slower veryslow"
+# if needed you can set \$FFMPEG to your preferred ffmpeg installation
+# otherwise find one in your path.
+if [[ -z "${FFMPEG}" ]]; then
+    l_path=/opt/t1ptop/bin:$PATH
+    if FFMPEG=$(PATH=$l_path which ffmpeg 2>/dev/null); then
+        # echo "Found ffmpeg at $FFMPEG"
+        true
+    else
+        die "Could not locate a working ffmpeg binary"
+    fi
+fi
+
+
+# likely any version of ffprobe would be ok. 
+# but maybe in the future we should pick up the ffprobe from the same 
+# place as the ffmpeg binary.
+FFPROBE=${FFPROBE:=ffprobe}
+
+# A VMAF running tool, taking args: <ref-clip> <dst-clip> <score-file>
+# such a script should be in the same directory as this script.
+VMAF_TOOL="$(dirname "$(realpath $0)")/vmaf_tool.bash"
+
+
 
 # Considerations:
 #  - we convert to RAW for the source of the encoding, so that decode time isn't important.
@@ -168,6 +193,13 @@ DISK_TEST=${DISK_TEST:=1}
 # are skipped with a warning.
 #
 
+SCRIPT_DIR=$(dirname "$(realpath $0)")
+ROOT_DIR=$(readlink -f "$SCRIPT_DIR/../..")
+CLIPS_DIR="clips"
+
+# echo "SCRIPT_DIR: $SCRIPT_DIR"
+# echo "ROOT_DIR:   $ROOT_DIR"
+
 # output result .csv filename
 RESULTS=${RESULTS:=results.csv}
 
@@ -205,6 +237,8 @@ SUPPORTS_CRF[libx265]=1
 # but this is the list of the ones that will be done if 
 # libx265 is included.
 CRF_LIST=${CRF_LIST:="8 12 16 20 24 28 32"}
+
+
 
 ######################################################################
 ######################################################################
@@ -284,7 +318,7 @@ function is_terminal() {
 }
 
 function do_colors() {
-    if is_terminal; then
+    if is_terminal && [[ "$COLOR" -eq 1 ]]; then
         local colors=$(tput colors)
         if [[ ! -z "$colors" ]] && [[ "$colors" -ge 8 ]]; then
             true
@@ -347,17 +381,18 @@ function wipe_data() {
     rm *.size *.time *.vmaf.json *.encdata *.params *.xfer *.vmaf.json.gz
 }
 
-# use $FFMPEG if specified, else find the best one to use.
-if [[ -z "${FFMPEG}" ]]; then
-    l_path=/opt/t1ptop/bin:$PATH
-    if FFMPEG=$(PATH=$l_path which ffmpeg 2>/dev/null); then
-        debug_1 "Found ffmpeg at $FFMPEG"
-    else
-        die "Could not locate a working ffmpeg binary"
-    fi
-fi
+function require_prog() {
+    local desc
+    desc="'$1'"; [[ ! -z "$2" ]] && desc="$2"
+    which "$1" 1>/dev/null 2>/dev/null \
+        || die "This program requires ${desc} to be installed"
+}
 
-which jq 1>/dev/null 2>/dev/null || die "This program requires the 'jq' tool to be installed."
+require_prog jq  "the 'jq' tool"
+require_prog /usr/bin/time "the time program /usr/bin/time (not bash's builtin 'time')"
+require_prog bc "the 'bc' program"
+require_prog $FFPROBE
+require_prog $FFMPEG
 
 # global FFMPEG options
 # be careful when setting this.
@@ -381,21 +416,15 @@ function run_vmaf() {
     # TODO:
     # really we should get it from the current tree where this 
     # script is located or installed to.
-    for vmaf in /home/jlynam/bin/vmaf \
-                /home/jlynam/trees/cloudgaming/sw/vmaf/docker/vmaf \
+    for vmaf in "$VMAF_TOOL" \
                 none; do
         if [[ -x $vmaf ]]; then
             break
         fi
     done
     [[ vmaf == "none" ]] && die "Could not find VMAF tool to run"
-    $vmaf "$1" "$2" "$3"
+    "$vmaf" "$1" "$2" "$3"
 }
-
-# probably any version would be ok. 
-# but maybe in the future we should pick up the ffprobe from the same 
-# place as the ffmpeg binary.
-FFPROBE=${FFPROBE:=ffprobe}
 
 # die with message $2 if $1 is empty.
 function error_if_unset() {
@@ -405,7 +434,7 @@ function error_if_unset() {
 # echo a filename prefixed by the $TMPDIR
 function in_tmpdir() {
     [[ -d "$TMPDIR" ]] || die "\$TMPDIR is not set!"
-    [[ -w "$TMPDIR" ]] || die "\$TMPDIR is not writable!"
+    [[ -w "$TMPDIR" ]] || die "\$TMPDIR is not writable! (at $TMPDIR)"
 
     echo "$TMPDIR/$1"
 }
@@ -1007,9 +1036,32 @@ parameters=$o_params"
      local frame_rat=$(clip_info "$ovf" avg_frame_rate); frame_rat=${frame_rat/\/*/}
      local duration=$(clip_info "$ovf" duration)
 
-     if [[ $frame_rat -ne 60 ]]; then
-        die "Invalid frame rate for '$ovf'. $frame_rat"
+     [[ -z "$frame_rat" ]] && die "No avg_frame_rate in clip!"
+
+     if [[ "$frame_rat" =~ ^[[:digit:]]+\/[[:digit:]]+$ ]]; then
+        # in case the frame rate is e.g. 60000/1001, we want to run through 
+        # bc to come up with 59.94.
+        frame_rat=$(echo $frame_rat | bc -l)   
+     elif [[ "$frame_rat" =~ ^[[:digit:]]+$ ]]; then
+        # regular integer 
+        true
+     else
+        die "Invalid avg_frame_rate: $frame_rat"
      fi
+
+     case $frame_rat in 
+        10|\
+        25|\
+        29.97|\
+        30|\
+        59.94|\
+        60)
+            true
+            ;;
+        *)
+            warn "Unusual frame rate: '$frame_rat' for clip: $ovf"
+            ;;
+     esac
 
     # color and pixel format info.
      local sf_color=$(clip_info $rvf pix_fmt)/$(clip_info $rvf color_space)/$(clip_info $rvf color_range)
@@ -1090,7 +1142,7 @@ function avail_codecs() {
         if ${FFMPEG} -codecs 2>/dev/null | grep -q $codec; then
             debug_2 "Codec $codec supported in ffmpeg ($FFMPEG)"
         else
-            warn "Codec $codec not supported inthis ffmpeg ($FFMPEG)"
+            warn "Codec $codec not supported in this ffmpeg ($FFMPEG)"
             supported=0
         fi
 
@@ -1204,6 +1256,9 @@ function encode_clip() {
 
     RAW=$(in_tmpdir ${subc}.y4m)
     REF=$(in_tmpdir ${subc}.ll.mp4)
+
+    [[ ! -d $(dirname "$RAW") ]] && mkdir -p $(dirname "$RAW")
+    # [[ ! -d $(dirname "$REF") ]] && mkdir -p $(dirname "$REF")
 
     local ofn=$(ffmpeg_video_filename $subc $encode_opts)
     [[ -z $ofn ]] && die "Couldn't produce filename for encoded output file"
@@ -1324,59 +1379,23 @@ function run_encoding_tests() {
 
 }
 
+
 # main() 
 #
 # runs execution performance and VMAF scoring against specified sources
 function main() {
+    echo -n "" > $RESULTS || die "Failed to write to results file!"
 
-    # clear out results file. 
-    # For any job that has already been run, it's pretty cheap to re-write the data 
-    # since we save the results.
-    echo -n "" > $RESULTS
+    [[ -d "$CLIPS_DIR" ]] || die "Expected clips directory at $CLIPS_DIR"
 
-    # CLIPS TO PROCESS
-    #
-    # this runs 'perf_test' (which executes all encoding and VMAF jobs) agaist the 
-    # specified clips (with optional sub-segments specified using -t and -ss, etc.)
+    debug_2 "Clips directory: $CLIPS_DIR"
 
-    # perf_test  clip2.mov
-    # perf_test  clip3.mov
-    # perf_test  clip4.mov
-
-  if false; then
-    # this grouping is used for testing how much performance increases 
-    # for longer clips. With some codecs there is a very noticeable effect.
-
-    perf_test  clip1.mov -t  5 -ss 0
-    perf_test  clip1.mov -t 10 -ss 0
-    perf_test  clip1.mov -t 15 -ss 0
-    perf_test  clip1.mov -t 20 -ss 0
-    perf_test  clip1.mov -t 25 -ss 0
-    perf_test  clip1.mov -t 30 -ss 0
-
-    perf_test  clip1.mov
-
-  fi
-
-  if true; then
-    perf_test  clip1.mov -t 10 -ss 0
-    perf_test  clip1.mov -t 10 -ss 10
-    perf_test  clip1.mov -t 10 -ss 17
-
-    perf_test  clip2.mov -t 10 -ss 0
-    perf_test  clip2.mov -t 10 -ss 10
-    perf_test  clip2.mov -t 10 -ss 20
-
-    perf_test  clip3.mov -t 10 -ss 0
-    perf_test  clip3.mov -t 10 -ss 10
-    perf_test  clip3.mov -t 10 -ss 20
-
-    perf_test  clip4.mov -t 10 -ss 0
-    perf_test  clip4.mov -t 10 -ss 10
-    perf_test  clip4.mov -t 10 -ss 20
-    perf_test  clip4.mov -t 10 -ss 30
-  fi
-
+    for fname in "$CLIPS_DIR"/*.{mp4,mov}; do
+        if [[ -e "${fname}" ]]; then
+            debug_2 "Input video file: $fname"
+            perf_test "${fname}" -t 10 -ss 0
+        fi
+    done
 }
 
 main

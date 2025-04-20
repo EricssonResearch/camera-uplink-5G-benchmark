@@ -51,8 +51,8 @@ BSD license, see included LICENSE file.
 
 Only genuine x86_64 hardware running Ubuntu 24.04 is currently supported. 
 Ubuntu 22.04 was previously supported and the changes to use 24.04 were 
-non-trivial. It's fairly difficult to 
-
+non-trivial. It's fairly difficult to move to a different OS due to
+version specific dependencies.
 
 ## File Reference
 
