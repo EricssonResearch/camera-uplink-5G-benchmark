@@ -84,6 +84,7 @@ ENV PKG_INST="apt-get install -y"
 # how many parallel compile jobs we can run (via gmake) before we
 # overload the system.
 ENV SAFE_JOBS 12
+ENV MAKE="make -j${SAFE_JOBS}"
 
 WORKDIR ${TOP}
 
@@ -124,7 +125,7 @@ RUN ${PKG_INST} \
 RUN git clone https://github.com/intel/libva
 WORKDIR libva
 RUN git checkout ${LIBVA_VERSION}
-RUN ./autogen.sh --prefix=${PREFIX} && make && make install 
+RUN ./autogen.sh --prefix=${PREFIX} && ${MAKE} && make install
 
 ### libva-utils
 # same version as libva-utils
@@ -132,15 +133,13 @@ WORKDIR ${TOP}
 RUN git clone https://github.com/intel/libva-utils
 WORKDIR libva-utils
 RUN git checkout ${LIBVA_VERSION}
-RUN ./autogen.sh --prefix=${PREFIX} && make && make install 
+RUN ./autogen.sh --prefix=${PREFIX} && ${MAKE} && make install
 
 ### gmmlib
 # TODO: can we put this in a different top-level build dir instead of # inside?
 # TODO: try version intel-gmmlib-22.5.2
 WORKDIR ${TOP}
-# ENV GMMLIB_VERSION  "intel-gmmlib-22.5.2"
-# JAL NEW 25
-ENV GMMLIB_VERSION  "intel-gmmlib-22.5.2"
+ENV GMMLIB_VERSION="intel-gmmlib-22.5.5"
 RUN git clone https://github.com/intel/gmmlib
 RUN cd gmmlib && git checkout ${GMMLIB_VERSION}
 RUN mkdir build.gmmlib
@@ -149,15 +148,13 @@ RUN cmake -DCMAKE_INSTALL_PREFIX=${PREFIX} \
           -DARCH=64 \
           -DCMAKE_BUILD_TYPE=Release \
           ../gmmlib
-RUN make -j ${SAFE_JOBS} && make install
+RUN ${MAKE} && make install
 
 ### Intel-Media-Driver
 # this one hogs all the CPU w/ -j , so limit it to -j ${SAFE_JOBS}
 # TODO: try version intel-media-23.1.6
 WORKDIR ${TOP}
-#ENV IMD_VERSION="intel-media-23.1.6"
-# JAL NEW 25
-ENV IMD_VERSION="intel-media-25.1.0"
+ENV IMD_VERSION="intel-media-24.4.4"
 RUN git clone https://github.com/intel/media-driver
 WORKDIR media-driver
 RUN git checkout ${IMD_VERSION}
@@ -165,8 +162,8 @@ WORKDIR ${TOP}
 
 RUN mkdir build.media-driver
 WORKDIR build.media-driver
-RUN cmake -DCMAKE_INSTALL_PREFIX=${PREFIX} ../media-driver 
-RUN make -j ${SAFE_JOBS} && make install
+RUN cmake -DCMAKE_INSTALL_PREFIX=${PREFIX} ../media-driver
+RUN ${MAKE} && make install
 
 
 ### Intel-Media-SDK
@@ -225,7 +222,7 @@ RUN cmake -DCMAKE_INSTALL_PREFIX=${PREFIX} \
           -DCMAKE_BUILD_TYPE=Release \
           ../msdk
 
-RUN make -j ${SAFE_JOBS} && make install
+RUN ${MAKE} && make install
 
 
 ### libva (again!)
@@ -235,7 +232,7 @@ RUN make -j ${SAFE_JOBS} && make install
 WORKDIR ${TOP}
 
 RUN cp -R libva libva.step2
-RUN cd libva.step2 && ./autogen.sh && make && make install
+RUN cd libva.step2 && ./autogen.sh && ${MAKE} && make install
 
 ### VMAF
 ENV VMAF_VERSION="d95b69e0"
@@ -247,7 +244,7 @@ RUN git clone https://github.com/Netflix/vmaf.git vmaf
 
 # TODO: reduce this list down
 # RUN ${PKG_INST} build-essential ninja-build nasm doxygen python3-pip python3-venv
-RUN ${PKG_INST} python3-pip python3-venv git
+RUN ${PKG_INST} python3-pip python3-venv
 
 ENV VMAF_DIR="${TOP}/vmaf"
 ENV     VENV="${TOP}/vmaf/.venv"
@@ -281,7 +278,7 @@ RUN BT=$([ ${DEBUG} -eq 0 ] && echo "release" || echo "debug") && \
          -Denable_float=true \
          -Denable_avx512=true
 
-RUN ${VENV}/bin/ninja -vC libvmaf/build
+RUN ${VENV}/bin/ninja -vC libvmaf/build test
 RUN cd python && ${VENV}/bin/python setup.py build_ext --build-lib .
 RUN ${VENV}/bin/ninja -vC libvmaf/build install
 
@@ -307,7 +304,7 @@ WORKDIR nv-codec-headers
 RUN git checkout ${NV_HEADERS_VERSION}
 # change the makefile so we could override PREFIX if desired.
 RUN sed -i 's/PREFIX =/PREFIX ?=/g' Makefile
-RUN make && make install
+RUN ${MAKE} && make install
 WORKDIR ${TOP}
 
 ### Build FFMPEG
@@ -321,7 +318,7 @@ RUN git clone https://github.com/FFmpeg/FFmpeg
 # we'll take these from the system packages since at the moment we
 # aren't interested in hacking on their code.
 RUN ${PKG_INST} \
-                libfdk-aac2 libfdk-aac-dev \
+                libfdk-aac-dev \
                 libvorbis-dev \
                 libmp3lame-dev \
                 \
@@ -378,7 +375,7 @@ RUN echo \
  > ffconf_options.txt
 
 RUN ./configure --prefix=${PREFIX} $(cat ffconf_options.txt)
-RUN make -j ${SAFE_JOBS}
+RUN ${MAKE}
 RUN make install
 RUN make clean
 

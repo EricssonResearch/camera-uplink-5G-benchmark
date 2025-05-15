@@ -8,7 +8,7 @@
 # This gives us repeatable builds of libraries as well as unstripped/debug 
 # versions.
 #
-export OT_VERSION=v1.0.007
+export OT_VERSION=v1.0.008
 
 # 2025-01-02: I am seeing that HEREDOCs don't work correctly anymore 
 # unless using BuildKit. You may need to install docker-buildx
@@ -70,7 +70,7 @@ function build_and_install() {
     local debug=${DEBUG:=0}
     local inst_pre=${INST_PRE:=/hostopt}
 
-    local docker_image=${docker_image:=jal_ff-${tag}}
+    local docker_image=${docker_image:=cub_ff-${tag}}
 
 cat << EOF
 ## building image: ${docker_image}
