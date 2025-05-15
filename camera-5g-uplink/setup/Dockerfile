@@ -1,5 +1,5 @@
-# We will usually want this to agree with the host system where we will 
-# ultimately run the tools, primarily because the package versions used 
+# We will usually want this to agree with the host system where we will
+# ultimately run the tools, primarily because the package versions used
 # for the ffmpeg build will need to be found at runtime.
 FROM ubuntu:24.04
 
@@ -9,19 +9,19 @@ ENV DEBIAN_FRONTEND=noninteractive
 # OT_VERSION the version of this Dockerfile.
 ARG OT_VERSION=t1ptop-ver-unknown
 
-#  TODO: 
+#  TODO:
 #
 #   - Make a .pc file for all of the /opt/t1ptop/lib stuff, e.g. for
 #     pkg-config --libs t1ptop
 #
 #   - ensure the CUDA filters are available
-#   - see if we even need to build the source packages for VA related 
-#     libraries. If present at the new /opt/t1ptop/lib location, they 
+#   - see if we even need to build the source packages for VA related
+#     libraries. If present at the new /opt/t1ptop/lib location, they
 #     cause linking problems at the host
 #   - to simplify, install VMAF libs into ${PREFIX}/lib, not ${PREFIX}/lib/${ARCH}
 #     (this turns out to be a challenge)
 #   - move to OneVPL library instead of MFX.
-#  
+#
 #   - VMAF related python scripts installed to /bin have the wrong python
 #     (from the .venv created for vmaf build)
 #   - figure out ARCH from uname instead of hard-coding it.
@@ -32,7 +32,7 @@ ARG OT_VERSION=t1ptop-ver-unknown
 
 # Note for users:
 #
-#  After you build the image, you can run the install script 
+#  After you build the image, you can run the install script
 #  at install.bash to install into the host system.
 #  But usually even this dockerfile is run from another script.
 #
@@ -43,18 +43,18 @@ ARG OT_VERSION=t1ptop-ver-unknown
 # See these docs:
 # https://github.com/Intel-Media-SDK/MediaSDK/wiki/Build-Media-SDK-on-Ubuntu
 
-# name of root work directory in container, basically just the dir for 
+# name of root work directory in container, basically just the dir for
 # downloading and building source packages.
 ARG TOP=/tmp/ffmpeg
 
 # whether this is a debug build
 ARG DEBUG=1
 
-# We do lock in specific software versions for ffmpeg, vmaf, and msdk. 
-# See: 
+# We do lock in specific software versions for ffmpeg, vmaf, and msdk.
+# See:
 #   LIBVA_VERSION
-#   FFMPEG_VERSION 
-#   VMAF_VERSION 
+#   FFMPEG_VERSION
+#   VMAF_VERSION
 #   MSDK_VERSION
 #
 # For pragmatic reasons w/ docker, to avoid rebuilding everything all
@@ -63,7 +63,7 @@ ARG DEBUG=1
 
 # installation prefix. We'll install to this path inside the container
 # and also in the host system. We want to use the same value as the host
-# system's location to avoid trouble with the pkg-config .pc files that 
+# system's location to avoid trouble with the pkg-config .pc files that
 # will be installed.
 ARG PREFIX="/opt/t1ptop"
 ENV ARCH="x86_64-linux-gnu"
@@ -81,7 +81,7 @@ ENV PKG_INST="apt-get install -y"
 # ENV FF_FNAME="ffmpeg-${FF_VERSION}.tar.bz2"
 # ENV FF_URL="http://ffmpeg.org/releases/ffmpeg-${FF_VERSION}.tar.bz2"
 
-# how many parallel compile jobs we can run (via gmake) before we 
+# how many parallel compile jobs we can run (via gmake) before we
 # overload the system.
 ENV SAFE_JOBS 12
 
@@ -107,10 +107,10 @@ RUN ${PKG_INST} \
 
 # for troubleshooting only
 RUN ${PKG_INST} \
-        vim 
+        vim
 
 
-# we have to do this or else the libraries aren't found 
+# we have to do this or else the libraries aren't found
 # by pkg-config in any alternative location.
 ENV PKG_CONFIG_PATH=${PREFIX}/lib/pkgconfig:${PREFIX}/lib/${ARCH}/pkgconfig:/usr/lib/${ARCH}/pkgconfig:/usr/lib/pkgconfig
 
@@ -137,7 +137,6 @@ RUN ./autogen.sh --prefix=${PREFIX} && make && make install
 ### gmmlib
 # TODO: can we put this in a different top-level build dir instead of # inside?
 # TODO: try version intel-gmmlib-22.5.2
-# JAL HERE
 WORKDIR ${TOP}
 # ENV GMMLIB_VERSION  "intel-gmmlib-22.5.2"
 # JAL NEW 25
@@ -185,7 +184,7 @@ RUN ${PKG_INST} \
 
 # for wayland
 RUN ${PKG_INST} \
-		libwayland-dev \
+        libwayland-dev \
         libwayland-client0
 
 RUN ${PKG_INST} patch
@@ -231,7 +230,7 @@ RUN make -j ${SAFE_JOBS} && make install
 
 ### libva (again!)
 #
-# now we need to build libva again ! 
+# now we need to build libva again !
 # it will build libva-glx / libva-wayland / libva-x11
 WORKDIR ${TOP}
 
@@ -277,7 +276,7 @@ RUN make clean
 RUN BT=$([ ${DEBUG} -eq 0 ] && echo "release" || echo "debug") && \
     ${VENV}/bin/meson setup libvmaf/build libvmaf \
         --prefix ${PREFIX} --libdir ${PREFIX}/lib \
-	    --pkgconfig.relocatable \
+        --pkgconfig.relocatable \
         --buildtype ${BT} \
          -Denable_float=true \
          -Denable_avx512=true
@@ -286,15 +285,15 @@ RUN ${VENV}/bin/ninja -vC libvmaf/build
 RUN cd python && ${VENV}/bin/python setup.py build_ext --build-lib .
 RUN ${VENV}/bin/ninja -vC libvmaf/build install
 
-# this will install several additional helper scripts and a 'VMAF Egg' 
+# this will install several additional helper scripts and a 'VMAF Egg'
 # (if I understand correctly)
-# note if you want to use the VMAF module that gets installed, you would set 
+# note if you want to use the VMAF module that gets installed, you would set
 # export PYTHONPATH=/opt/t1ptop/lib/python3.10/site-packages/vmaf-3.0.0-py3.10-linux-x86_64.egg
 
 RUN cd python && ${VENV}/bin/python setup.py install --prefix ${PREFIX}
 
 # used to just be these...
-# RUN make 
+# RUN make
 # RUN make install
 
 RUN ldconfig
@@ -319,7 +318,7 @@ WORKDIR ${TOP}
 RUN git clone https://github.com/FFmpeg/FFmpeg
 
 # some nice extra media formats and codecs for ffmpeg's use.
-# we'll take these from the system packages since at the moment we 
+# we'll take these from the system packages since at the moment we
 # aren't interested in hacking on their code.
 RUN ${PKG_INST} \
                 libfdk-aac2 libfdk-aac-dev \
@@ -391,16 +390,16 @@ WORKDIR ${TOP}
 RUN ${PKG_INST} rsync
 RUN ${PKG_INST} patchelf
 
-# TODO: clean up, uninstall any tools that were only installed for 
+# TODO: clean up, uninstall any tools that were only installed for
 # build purposes and unlikely to be used again.
 
-# once everything is installed and copied over, we can run patchelf 
+# once everything is installed and copied over, we can run patchelf
 # against the ffmpeg library to lock its shared library search path.
 #
 
 RUN cat <<EOF > ${TOP}/install.bash
 #!/bin/env bash
-    
+
 # \${INST_PRE} is where you want to install to, e.g. /opt/t1ptop
 # \${ARCH} is the machine's arch triple, e.g. x86_64-linux-gnu
 # \${PREFIX} is where we have installed libraries in THIS container.
@@ -430,27 +429,27 @@ function die() {
 
 [[ ! -d \${INST_PRE} ]] && die "Install dir: \${INST_PRE} doesn't exist"
 [[ ! -w \${INST_PRE} ]] && die "Install dir: \${INST_PRE} not writable!"
-    
+
 echo "# Installing libraries to \${INST_PRE}"
 rsync -ravP --delete \${PREFIX}/ \${INST_PRE}/
 
-# NOTE: we could switch to \$ORIGIN/../lib (etc.) instead if we wanted 
+# NOTE: we could switch to \$ORIGIN/../lib (etc.) instead if we wanted
 # to be able to move it around to someplace besides \$PREFIX.
 # Let's consider that later on.
 # RUNPATH="\${PREFIX}/lib/\${ARCH}:\${PREFIX}/lib:/usr/lib/\${ARCH}:/usr/lib"
 
 echo "# Runpath will be set to \${RUNPATH}"
 
-# we use patchelf to rewrite the rpath in each binary so that it 
+# we use patchelf to rewrite the rpath in each binary so that it
 # preferentially uses the shared libraries from the same install location
 # in \${INST_PRE}
-for prog in \${INST_PRE}/bin/*; do 
-      echo " # Patching executable \$prog"; 
+for prog in \${INST_PRE}/bin/*; do
+      echo " # Patching executable \$prog";
       patchelf --set-rpath \${RUNPATH} \$prog
 done
 
-# unfortunately we need to write rpaths into libraries as well -- 
-# the libraries have their own. If it's empty it uses the system 
+# unfortunately we need to write rpaths into libraries as well --
+# the libraries have their own. If it's empty it uses the system
 # paths.
 for prog in \${INST_PRE}/lib/lib*.so* \${INST_PRE}/lib/\${ARCH}/lib*.so*; do
   if [[ ! -L "\$prog" ]]; then
@@ -478,7 +477,7 @@ RUN chmod +rx ${TOP}/install.bash
 ENV PKG_CONFIG_LIBDIR=${INST_PRE}/lib/pkgconfig
 ENV INST_PRE=${INST_PRE}
 
-# Note, below we get the names of each 'module' by taking the .pc file's name 
+# Note, below we get the names of each 'module' by taking the .pc file's name
 # w/o the .pc extension.
 
 RUN cat <<EOF > ${TOP}/t1ptop.pc
